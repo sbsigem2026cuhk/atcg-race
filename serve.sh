@@ -1,0 +1,10 @@
+#!/bin/bash
+cd "$(dirname "$0")"
+PORT="${PORT:-8080}"
+echo ""
+echo "  ATCG Race — local server"
+echo "  Chooser:  http://localhost:${PORT}/"
+echo "  Online:   http://localhost:${PORT}/online.html"
+echo "  Arduino:  http://localhost:${PORT}/dna-arduino.html"
+echo ""
+python3 -m http.server "$PORT"

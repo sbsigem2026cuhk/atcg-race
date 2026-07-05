@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sequence race — card prototype (3 players)</title>
+<style>
+  :root{
+    --bg:#0c0f14;--panel:#151a22;--line:#2a3344;--txt:#e8ecf4;--muted:#8b95a8;
+    --a:#5eead4;--t:#fb7185;--c:#38bdf8;--g:#fbbf24;--u:#c084fc;
+    --accent:#818cf8;--warn:#fbbf24;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;padding:16px;line-height:1.4}
+  h1{font-size:1.25rem;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:.8rem;margin-bottom:16px;max-width:52rem}
+  .target-wrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
+  .target-wrap h2{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}
+  .bases{display:flex;gap:4px;flex-wrap:wrap}
+  .base{font-family:ui-monospace,monospace;font-weight:700;font-size:1.1rem;width:2.1rem;height:2.1rem;display:grid;place-items:center;border-radius:8px;border:2px solid rgba(255,255,255,.12)}
+  .base.A{background:rgba(94,234,212,.15);color:var(--a);border-color:rgba(94,234,212,.4)}
+  .base.T{background:rgba(251,113,133,.15);color:var(--t);border-color:rgba(251,113,133,.4)}
+  .base.C{background:rgba(56,189,248,.15);color:var(--c);border-color:rgba(56,189,248,.4)}
+  .base.G{background:rgba(251,191,36,.15);color:var(--g);border-color:rgba(251,191,36,.4)}
+  .players{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+  .player{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .player.active{outline:2px solid var(--accent);box-shadow:0 0 0 3px rgba(129,140,248,.2)}
+  .player h3{margin:0 0 8px;font-size:.95rem;display:flex;justify-content:space-between;align-items:center}
+  .badge{font-size:.65rem;padding:2px 8px;border-radius:999px;background:rgba(129,140,248,.2);color:var(--accent)}
+  .built{display:flex;gap:3px;flex-wrap:wrap;min-height:2.4rem;margin-bottom:10px;padding:8px;background:rgba(0,0,0,.25);border-radius:8px;border:1px dashed var(--line)}
+  .built .slot{font-family:ui-monospace,monospace;font-size:.85rem;width:1.85rem;height:1.85rem;display:grid;place-items:center;border-radius:6px;background:rgba(255,255,255,.06)}
+  .built .slot.empty{color:var(--muted);font-size:.65rem}
+  .hand{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .card{cursor:pointer;user-select:none;font-family:ui-monospace,monospace;font-size:.78rem;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:#1e2430;transition:transform .1s,box-shadow .15s}
+  .card:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.35)}
+  .card.nuc.A{border-color:rgba(94,234,212,.5);color:var(--a)}
+  .card.nuc.T{border-color:rgba(251,113,133,.5);color:var(--t)}
+  .card.nuc.C{border-color:rgba(56,189,248,.5);color:var(--c)}
+  .card.nuc.G{border-color:rgba(251,191,36,.5);color:var(--g)}
+  .card.nuc.U{border-color:rgba(192,132,252,.5);color:var(--u)}
+  .card.strat{font-size:.62rem;max-width:150px;line-height:1.25;color:#cbd5e1;text-align:left}
+  .controls{margin-top:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  button{font:inherit;padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:#252b38;color:var(--txt);cursor:pointer}
+  button.primary{background:linear-gradient(135deg,#4f46e5,#6366f1);border-color:#6366f1}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .log{font-size:.72rem;color:var(--muted);max-height:140px;overflow-y:auto;background:rgba(0,0,0,.2);padding:10px;border-radius:8px;margin-top:12px;white-space:pre-wrap}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;place-items:center;padding:16px;z-index:50}
+  .modal.show{display:grid}
+  .modal-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;max-width:400px;width:100%}
+  .modal-card h4{margin:0 0 10px}
+  .pick-list{display:flex;flex-direction:column;gap:6px;margin:10px 0;max-height:50vh;overflow-y:auto}
+  .pick-list button{text-align:left}
+  .skip-msg{color:var(--warn);font-size:.78rem;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>Sequence race (prototype)</h1>
+<p class="sub">3 players (you + 2 CPUs) · shared 10-base DNA target · fill complement left→right in your row (<strong>U</strong> ok opposite template <strong>A</strong>). Each turn: draw 2, play any cards, then <strong>End turn</strong>. First full row wins.</p>
+
+<div class="target-wrap">
+  <h2>Shared target (sequence deck)</h2>
+  <div class="bases" id="targetBases"></div>
+</div>
+<div class="players" id="players"></div>
+<div class="controls">
+  <button type="button" class="primary" id="btnNew">New game</button>
+  <button type="button" id="btnEndTurn" disabled>End turn</button>
+</div>
+<div class="log" id="log"></div>
+
+<div class="modal" id="modal">
+  <div class="modal-card">
+    <h4 id="modalTitle">Choose</h4>
+    <div class="pick-list" id="modalBody"></div>
+    <button type="button" id="modalCancel">Cancel</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const TARGET_LEN = 10;
+  const STRATEGIES = [
+    { id: 'dnase', name: 'DNase', desc: 'Remove 1 latest nucleotide from a player.' },
+    { id: 'rnase', name: 'RNase', desc: 'If their row has U, remove 2 latest nucleotides.' },
+    { id: 'salt', name: 'High salt', desc: 'Your next nucleotide may match or mismatch.' },
+    { id: 'hitemp', name: 'High temp', desc: 'Target skips next turn (no draw/play) unless Taq.' },
+    { id: 'taq', name: 'Taq polymerase', desc: 'Clear heat / skip on you.' },
+    { id: 'primase', name: 'Primase', desc: 'Place one complementary nucleotide in any empty slot.' },
+    { id: 'methyl', name: 'Methylation', desc: 'Your row is protected from DNase/RNase until your next turn ends.' },
+    { id: 'trans', name: 'Gene translocation', desc: 'Swap hands with a player.' },
+    { id: 'dup', name: 'Gene duplication', desc: 'Draw 3 cards.' }
+  ];
+  const strategyDeckCounts = { dnase: 2, rnase: 2, salt: 3, hitemp: 2, taq: 2, primase: 2, methyl: 2, trans: 1, dup: 3 };
+
+  const logEl = document.getElementById('log');
+  const modal = document.getElementById('modal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+  const modalCancel = document.getElementById('modalCancel');
+  const btnEndTurn = document.getElementById('btnEndTurn');
+
+  modalCancel.addEventListener('click', () => modal.classList.remove('show'));
+
+  let target = [];
+  let drawPile = [];
+  let discardPile = [];
+  let players = [];
+  let turnIndex = 0;
+
+  function log(msg) {
+    const t = new Date().toLocaleTimeString();
+    logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent.slice(0, 4000);
+  }
+
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function newPlayer(name, id) {
+    return {
+      id,
+      name,
+      hand: [],
+      built: Array(TARGET_LEN).fill(null),
+      skip: 0,
+      hitemp: false,
+      saltNext: false,
+      methyl: false
+    };
+  }
+
+  function buildSequencePool() {
+    const p = [];
+    for (let i = 0; i < 5; i++) p.push('A');
+    for (let i = 0; i < 5; i++) p.push('T');
+    for (let i = 0; i < 5; i++) p.push('C');
+    for (let i = 0; i < 5; i++) p.push('G');
+    return shuffle(p);
+  }
+
+  function buildActionDeck() {
+    const d = [];
+    const nucs = 'ATCGU';
+    for (let k = 0; k < 8; k++) for (const b of nucs) d.push({ type: 'nuc', base: b });
+    for (const [id, n] of Object.entries(strategyDeckCounts))
+      for (let i = 0; i < n; i++) d.push({ type: 'strat', id });
+    return shuffle(d);
+  }
+
+  function complementNeeded(templateBase) {
+    const m = { A: 'T', T: 'A', C: 'G', G: 'C' };
+    return m[templateBase] || 'T';
+  }
+
+  function isComplementary(playBase, templateBase) {
+    if (playBase === complementNeeded(templateBase)) return true;
+    if (templateBase === 'A' && playBase === 'U') return true;
+    return false;
+  }
+
+  function filledCount(p) {
+    return p.built.filter((x) => x != null).length;
+  }
+
+  function isComplete(p) {
+    return p.built.every((x) => x != null);
+  }
+
+  function firstEmptyFromLeft(p) {
+    for (let i = 0; i < TARGET_LEN; i++) if (p.built[i] == null) return i;
+    return TARGET_LEN;
+  }
+
+  function winner() {
+    return players.find(isComplete) || null;
+  }
+
+  function drawCards(p, n) {
+    for (let i = 0; i < n; i++) {
+      if (!drawPile.length) {
+        if (!discardPile.length) break;
+        drawPile = shuffle(discardPile.splice(0, discardPile.length));
+      }
+      if (drawPile.length) p.hand.push(drawPile.pop());
+    }
+  }
+
+  function cardLabel(c) {
+    if (c.type === 'nuc') return c.base;
+    const s = STRATEGIES.find((x) => x.id === c.id);
+    return s ? s.name : c.id;
+  }
+
+  function popFromBuiltRight(p, count) {
+    let removed = 0;
+    for (let i = TARGET_LEN - 1; i >= 0 && removed < count; i--) {
+      if (p.built[i] != null) {
+        discardPile.push({ type: 'nuc', base: p.built[i] });
+        p.built[i] = null;
+        removed++;
+      }
+    }
+  }
+
+  function hasUInBuilt(p) {
+    return p.built.some((b) => b === 'U');
+  }
+
+  function newGame() {
+    target = buildSequencePool().slice(0, TARGET_LEN);
+    drawPile = buildActionDeck();
+    discardPile = [];
+    players = [newPlayer('You', 0), newPlayer('CPU 1', 1), newPlayer('CPU 2', 2)];
+    for (const p of players) drawCards(p, 3);
+    turnIndex = 0;
+    log('Target: ' + target.join(''));
+    render();
+    startTurn();
+  }
+
+  function renderTarget() {
+    const el = document.getElementById('targetBases');
+    el.innerHTML = '';
+    target.forEach((b) => {
+      const d = document.createElement('span');
+      d.className = 'base ' + b;
+      d.textContent = b;
+      el.appendChild(d);
+    });
+  }
+
+  function renderPlayers() {
+    const root = document.getElementById('players');
+    root.innerHTML = '';
+    players.forEach((p, idx) => {
+      const box = document.createElement('div');
+      box.className = 'player' + (idx === turnIndex ? ' active' : '');
+      const h = document.createElement('h3');
+      h.innerHTML = '<span>' + p.name + '</span><span class="badge">' + filledCount(p) + '/' + TARGET_LEN + '</span>';
+      box.appendChild(h);
+      if (p.skip > 0) {
+        const s = document.createElement('div');
+        s.className = 'skip-msg';
+        s.textContent = 'Queued skip: ' + p.skip + ' — play Taq on your turn to clear heat.';
+        box.appendChild(s);
+      }
+      if (p.hitemp) {
+        const s = document.createElement('div');
+        s.className = 'skip-msg';
+        s.textContent = 'High temp marker on you.';
+        box.appendChild(s);
+      }
+      const row = document.createElement('div');
+      row.className = 'built';
+      for (let i = 0; i < TARGET_LEN; i++) {
+        const slot = document.createElement('span');
+        const v = p.built[i];
+        slot.className = 'slot' + (v ? ' nuc ' + v : ' empty');
+        slot.textContent = v || '·';
+        row.appendChild(slot);
+      }
+      box.appendChild(row);
+      const hand = document.createElement('div');
+      hand.className = 'hand';
+      p.hand.forEach((c, ci) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'card ' + (c.type === 'nuc' ? 'nuc ' + c.base : 'strat');
+        btn.textContent = c.type === 'nuc' ? c.base : cardLabel(c);
+        const def = c.type === 'strat' ? STRATEGIES.find((x) => x.id === c.id) : null;
+        btn.title = def ? def.desc : 'Nucleotide ' + c.base;
+        btn.disabled = idx !== 0 || turnIndex !== 0 || !!winner();
+        btn.addEventListener('click', () => onHandClick(idx, ci));
+        hand.appendChild(btn);
+      });
+      box.appendChild(hand);
+      root.appendChild(box);
+    });
+    btnEndTurn.disabled = turnIndex !== 0 || !!winner();
+  }
+
+  function render() {
+    renderTarget();
+    renderPlayers();
+  }
+
+  function onHandClick(playerIdx, handIdx) {
+    if (winner()) return;
+    if (playerIdx !== 0 || turnIndex !== 0) return;
+    const p = players[0];
+    const c = p.hand[handIdx];
+    if (!c) return;
+    if (c.type === 'nuc') {
+      const slot = firstEmptyFromLeft(p);
+      if (slot >= TARGET_LEN) return;
+      if (!tryPlaceNucleotide(p, handIdx, slot, false)) return;
+    } else {
+      playStrategyCard(p, handIdx);
+    }
+    afterAction();
+  }
+
+  function tryPlaceNucleotide(p, handIdx, slotIdx, allowAnySlot) {
+    const c = p.hand[handIdx];
+    if (!c || c.type !== 'nuc') return false;
+    if (p.built[slotIdx] != null) {
+      log('Slot ' + slotIdx + ' already filled.');
+      return false;
+    }
+    const next = firstEmptyFromLeft(p);
+    if (!allowAnySlot && slotIdx !== next) {
+      log('Must extend from the left: next empty is slot ' + next + '.');
+      return false;
+    }
+    const tpl = target[slotIdx];
+    const ok = p.saltNext || isComplementary(c.base, tpl);
+    if (!ok) {
+      log('Illegal nucleotide for template at ' + slotIdx + '.');
+      return false;
+    }
+    p.hand.splice(handIdx, 1);
+    discardPile.push(c);
+    p.built[slotIdx] = c.base;
+    p.saltNext = false;
+    log(p.name + ' placed ' + c.base + ' at ' + slotIdx);
+    return true;
+  }
+
+  function playStrategyCard(p, handIdx) {
+    const c = p.hand[handIdx];
+    if (!c || c.type !== 'strat') return;
+    const def = STRATEGIES.find((x) => x.id === c.id);
+    if (!def) return;
+
+    const spend = () => {
+      p.hand.splice(handIdx, 1);
+      discardPile.push(c);
+    };
+
+    const others = players.filter((x) => x.id !== p.id);
+
+    if (c.id === 'dnase' || c.id === 'rnase' || c.id === 'hitemp' || c.id === 'trans') {
+      modalTitle.textContent = def.name + ' — pick target';
+      modalBody.innerHTML = '';
+      others.forEach((v) => {
+        const b = document.createElement('button');
+        b.textContent = v.name;
+        b.addEventListener('click', () => {
+          modal.classList.remove('show');
+          spend();
+          applyOffense(p, c, v);
+          afterAction();
+        });
+        modalBody.appendChild(b);
+      });
+      modal.classList.add('show');
+      return;
+    }
+
+    if (c.id === 'primase') {
+      modalTitle.textContent = 'Primase — pick empty slot';
+      modalBody.innerHTML = '';
+      for (let i = 0; i < TARGET_LEN; i++) {
+        if (p.built[i] != null) continue;
+        const b = document.createElement('button');
+        b.textContent = 'Slot ' + i + ' (template ' + target[i] + ')';
+        b.addEventListener('click', () => {
+          modalBody.innerHTML = '';
+          modalTitle.textContent = 'Pick nucleotide from hand';
+          p.hand.forEach((hc) => {
+            if (hc.type !== 'nuc') return;
+            const bb = document.createElement('button');
+            bb.textContent = hc.base;
+            bb.addEventListener('click', () => {
+              modal.classList.remove('show');
+              const want = hc.base;
+              p.hand.splice(handIdx, 1);
+              discardPile.push(c);
+              const nucIdx = p.hand.findIndex((x) => x.type === 'nuc' && x.base === want);
+              if (nucIdx < 0) {
+                log('Primase error: nucleotide missing.');
+                render();
+                return;
+              }
+              if (tryPlaceNucleotide(p, nucIdx, i, true)) afterAction();
+              else render();
+            });
+            modalBody.appendChild(bb);
+          });
+        });
+        modalBody.appendChild(b);
+      }
+      modal.classList.add('show');
+      return;
+    }
+
+    spend();
+    if (c.id === 'salt') {
+      p.saltNext = true;
+      log(p.name + ': High salt — next nucleotide free match/mismatch.');
+    } else if (c.id === 'taq') {
+      p.hitemp = false;
+      p.skip = 0;
+      log(p.name + ': Taq — cleared skip/heat.');
+    } else if (c.id === 'methyl') {
+      p.methyl = true;
+      log(p.name + ': Methylation — protected from DNase/RNase until end of your next turn.');
+    } else if (c.id === 'dup') {
+      drawCards(p, 3);
+      log(p.name + ': Gene duplication — drew 3.');
+    }
+    afterAction();
+  }
+
+  function applyOffense(actor, card, victim) {
+    if (card.id === 'dnase') {
+      if (victim.methyl) log('DNase blocked by methylation.');
+      else popFromBuiltRight(victim, 1);
+      log(actor.name + ' DNase → ' + victim.name);
+    } else if (card.id === 'rnase') {
+      if (victim.methyl) log('RNase blocked.');
+      else if (hasUInBuilt(victim)) popFromBuiltRight(victim, 2);
+      else log('RNase: no U in ' + victim.name + "'s row.");
+      log(actor.name + ' RNase → ' + victim.name);
+    } else if (card.id === 'hitemp') {
+      victim.hitemp = true;
+      victim.skip = Math.max(victim.skip, 1);
+      log(actor.name + ' High temp → ' + victim.name + ' (skip next turn).');
+    } else if (card.id === 'trans') {
+      const t = actor.hand;
+      actor.hand = victim.hand;
+      victim.hand = t;
+      log(actor.name + ' swapped hands with ' + victim.name);
+    }
+  }
+
+  function afterAction() {
+    render();
+    const w = winner();
+    if (w) {
+      log('WINNER: ' + w.name);
+      btnEndTurn.disabled = true;
+    }
+  }
+
+  function startTurn() {
+    const w = winner();
+    if (w) {
+      btnEndTurn.disabled = true;
+      render();
+      return;
+    }
+    const p = players[turnIndex];
+    if (p.methyl) {
+      p.methyl = false;
+      log(p.name + ': Methylation faded.');
+    }
+    if (p.skip > 0) {
+      p.skip--;
+      log(p.name + ' skips (high temp). Remaining skips: ' + p.skip);
+      advanceTurn();
+      return;
+    }
+    drawCards(p, 2);
+    log(p.name + ' drew 2 (hand ' + p.hand.length + ').');
+    render();
+    if (p.id !== 0) setTimeout(() => cpuTurn(p), 450);
+  }
+
+  function advanceTurn() {
+    turnIndex = (turnIndex + 1) % players.length;
+    render();
+    startTurn();
+  }
+
+  function cpuTurn(p) {
+    if (winner()) return;
+    let moves = 0;
+    while (moves++ < 18) {
+      if (isComplete(p)) break;
+      const slot = firstEmptyFromLeft(p);
+      if (slot >= TARGET_LEN) break;
+      const tpl = target[slot];
+      const hi = p.hand.findIndex(
+        (c) => c.type === 'nuc' && (c.base === complementNeeded(tpl) || (tpl === 'A' && c.base === 'U'))
+      );
+      if (hi >= 0) {
+        const card = p.hand.splice(hi, 1)[0];
+        discardPile.push(card);
+        p.built[slot] = card.base;
+        log(p.name + ' played ' + card.base);
+        continue;
+      }
+      const dupI = p.hand.findIndex((c) => c.type === 'strat' && c.id === 'dup');
+      if (dupI >= 0) {
+        p.hand.splice(dupI, 1);
+        discardPile.push({ type: 'strat', id: 'dup' });
+        drawCards(p, 3);
+        log(p.name + ' used Gene duplication');
+        continue;
+      }
+      const saltI = p.hand.findIndex((c) => c.type === 'strat' && c.id === 'salt');
+      const nucI = p.hand.findIndex((c) => c.type === 'nuc');
+      if (saltI >= 0 && nucI >= 0) {
+        const a = Math.max(saltI, nucI);
+        const b = Math.min(saltI, nucI);
+        const high = p.hand.splice(a, 1)[0];
+        const low = p.hand.splice(b, 1)[0];
+        discardPile.push(high, low);
+        const nCard = high.type === 'nuc' ? high : low.type === 'nuc' ? low : null;
+        if (nCard && nCard.type === 'nuc') {
+          const sl = firstEmptyFromLeft(p);
+          if (sl < TARGET_LEN) {
+            p.built[sl] = nCard.base;
+            log(p.name + ' High salt + placed ' + nCard.base);
+          }
+        }
+        continue;
+      }
+      break;
+    }
+    render();
+    if (winner()) {
+      log('WINNER: ' + winner().name);
+      btnEndTurn.disabled = true;
+      return;
+    }
+    setTimeout(advanceTurn, 500);
+  }
+
+  document.getElementById('btnNew').addEventListener('click', newGame);
+  btnEndTurn.addEventListener('click', () => {
+    if (turnIndex !== 0 || winner()) return;
+    advanceTurn();
+  });
+
+  newGame();
+})();
+</script>
+</body>
+</html>

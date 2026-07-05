@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DNA game — breadboard wiring</title>
+<style>
+  :root{
+    --bg:#0c1021;--card:#151a2e;--border:#2a3555;--text:#e8eaf0;
+    --muted:#8b95b2;--5v:#e53935;--gnd:#1e88e5;--sig:#43a047;
+    --accent:#7c4dff;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;padding:28px 18px 48px;font-family:"Iowan Old Style","Palatino Linotype",Georgia,serif;
+    background:var(--bg);color:var(--text);line-height:1.55;font-size:17px;
+    max-width:720px;margin-inline:auto;
+  }
+  h1{font-size:1.55rem;font-weight:700;margin:0 0 6px;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:15px;margin-bottom:26px}
+  h2{
+    font-size:1.05rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);
+    margin:28px 0 12px;border-bottom:1px solid var(--border);padding-bottom:6px;
+  }
+  ul{padding-left:1.15em}
+  li{margin:8px 0}
+  .card{
+    background:var(--card);border:1px solid var(--border);border-radius:14px;
+    padding:18px 20px;margin:18px 0;
+  }
+  table{
+    width:100%;border-collapse:collapse;font-size:15px;font-family:ui-monospace,SFMono-Regular,monospace;
+  }
+  th,td{border:1px solid var(--border);padding:10px 12px;text-align:left}
+  th{background:rgba(124,77,255,.12)}
+  .tag5v{color:var(--5v);font-weight:700}
+  .tagg{color:var(--gnd);font-weight:700}
+  .tags{color:var(--sig);font-weight:700}
+  .note{
+    font-size:14px;color:var(--muted);border-left:3px solid var(--accent);
+    padding:10px 14px;margin:16px 0;background:rgba(124,77,255,.08);border-radius:0 8px 8px 0;
+  }
+  svg{display:block;width:100%;height:auto;margin:12px 0}
+  .cap{font-size:13px;color:var(--muted);margin-top:8px;text-align:center}
+  kbd{
+    font-family:ui-monospace,monospace;font-size:13px;
+    background:var(--border);padding:2px 7px;border-radius:6px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Breadboard wiring</h1>
+<p class="sub">Arduino Uno · four 3-pin buttons (UCC, GND, SW) · half-size breadboard · jumpers</p>
+
+<h2>What each pin means</h2>
+<div class="card">
+  <table>
+    <thead><tr><th>Label</th><th>Connect to</th></tr></thead>
+    <tbody>
+      <tr><td><span class="tag5v">UCC</span> (VCC)</td><td>5 V power (same node for all four keys)</td></tr>
+      <tr><td><span class="tagg">GND</span></td><td>Ground (same node for all four keys)</td></tr>
+      <tr><td><span class="tags">SW</span></td><td>One signal wire <em>per</em> key → a different Arduino digital pin</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>Power rails on the breadboard</h2>
+<ol>
+  <li>Plug the <strong>Arduino Uno</strong> into USB so you can reference pin labels, or work from the pin names printed on the board.</li>
+  <li>Use a <strong>jumper</strong> from Arduino <span class="tag5v">5V</span> → the breadboard’s <strong>red (+) rail</strong> running along one long edge.</li>
+  <li>Use a <strong>jumper</strong> from Arduino <span class="tagg">GND</span> → the breadboard’s <strong>blue (−) rail</strong> on the same side (or opposite side if that matches your habit—just keep +/− consistent).</li>
+</ol>
+<p class="note">If your breadboard has <strong>split rails</strong> (a gap in the middle of the long strip), add a small jumper so both halves of the red rail are connected to 5V, and both halves of blue to GND.</p>
+
+<h2>Each of the four keys</h2>
+<p>For <strong>every</strong> button module:</p>
+<ul>
+  <li><span class="tag5v">UCC</span> → any hole on the <strong>red 5V rail</strong>.</li>
+  <li><span class="tagg">GND</span> → any hole on the <strong>blue GND rail</strong>.</li>
+  <li><span class="tags">SW</span> → a <strong>free row</strong> on the breadboard (same row on both sides of the center groove if you bridge with a component; usually you use one row and a jumper to the Arduino).</li>
+</ul>
+<p>From each <strong>SW row</strong>, run a jumper to the Arduino:</p>
+<div class="card">
+  <table>
+    <thead><tr><th>Key (base)</th><th>SW → Arduino</th></tr></thead>
+    <tbody>
+      <tr><td>A</td><td>Digital <strong>2</strong> (D2)</td></tr>
+      <tr><td>T</td><td>Digital <strong>3</strong> (D3)</td></tr>
+      <tr><td>C</td><td>Digital <strong>4</strong> (D4)</td></tr>
+      <tr><td>G</td><td>Digital <strong>5</strong> (D5)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>Start (no extra wire)</h2>
+<p>Press and hold <strong>all four</strong> keys (A+T+C+G) at the same time for about <strong>0.15 seconds</strong>. The Arduino sends a start signal to the page. You can still start from the keyboard with <kbd>Space</kbd>.</p>
+
+<h2>Picture of the idea</h2>
+<p style="color:var(--muted);font-size:15px">Rails at top; Arduino pins on the right. Your real breadboard may be rotated—match <strong>nets</strong> (5V, GND, SW×4), not the drawing’s compass direction.</p>
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 360" role="img" aria-labelledby="ttl desc">
+  <title id="ttl">Breadboard and Arduino wiring diagram</title>
+  <desc id="desc">Red rail for 5V, blue for GND, green lines from four switch rows to D2 through D5</desc>
+  <rect width="520" height="360" fill="#0c1021"/>
+  <!-- breadboard body -->
+  <rect x="24" y="56" width="360" height="248" rx="10" fill="#1e2438" stroke="#2a3555"/>
+  <!-- rails -->
+  <rect x="34" y="66" width="340" height="18" rx="4" fill="#3d2424" stroke="#e53935" stroke-width="1.5"/>
+  <text x="44" y="79" fill="#ff8a80" font-size="11" font-family="system-ui,sans-serif">+ rail (5V from Uno)</text>
+  <rect x="34" y="276" width="340" height="18" rx="4" fill="#1a2e3d" stroke="#1e88e5" stroke-width="1.5"/>
+  <text x="44" y="289" fill="#90caf9" font-size="11" font-family="system-ui,sans-serif">− rail (GND from Uno)</text>
+  <!-- center groove -->
+  <rect x="200" y="100" width="8" height="160" fill="#0c1021"/>
+  <!-- simplified tie points for SW rows -->
+  <g font-family="ui-monospace,monospace" font-size="10" fill="#e8eaf0">
+    <rect x="52" y="118" width="56" height="22" rx="4" fill="#252b40" stroke="#43a047"/>
+    <text x="60" y="134" fill="#a5d6a7">A SW row</text>
+    <rect x="120" y="118" width="56" height="22" rx="4" fill="#252b40" stroke="#43a047"/>
+    <text x="128" y="134" fill="#a5d6a7">T SW row</text>
+    <rect x="228" y="118" width="56" height="22" rx="4" fill="#252b40" stroke="#43a047"/>
+    <text x="236" y="134" fill="#a5d6a7">C SW row</text>
+    <rect x="296" y="118" width="56" height="22" rx="4" fill="#252b40" stroke="#43a047"/>
+    <text x="304" y="134" fill="#a5d6a7">G SW row</text>
+  </g>
+  <text x="52" y="108" fill="#8b95b2" font-size="10" font-family="system-ui,sans-serif">Each key: UCC→+rail, GND→−rail, SW→its row</text>
+  <!-- Arduino block -->
+  <rect x="10" y="24" width="100" height="24" rx="4" fill="#1b5e20" stroke="#43a047"/>
+  <text x="20" y="41" fill="#fff" font-size="11" font-family="system-ui,sans-serif">Arduino Uno</text>
+  <!-- wires from rails to Uno (conceptual) -->
+  <path d="M 404 100 L 404 75 L 130 75 L 130 66" fill="none" stroke="#e53935" stroke-width="2"/>
+  <path d="M 404 280 L 404 310 L 130 310 L 130 294" fill="none" stroke="#1e88e5" stroke-width="2"/>
+  <text x="410" y="188" fill="#8b95b2" font-size="10" font-family="system-ui,sans-serif">Jumpers to</text>
+  <text x="410" y="202" fill="#8b95b2" font-size="10" font-family="system-ui,sans-serif">Uno 5V &amp; GND</text>
+  <!-- SW to D2-D5 -->
+  <path d="M 80 140 L 80 200 L 400 200" fill="none" stroke="#43a047" stroke-width="2"/>
+  <path d="M 148 140 L 148 185 L 400 185" fill="none" stroke="#43a047" stroke-width="2"/>
+  <path d="M 256 140 L 256 170 L 400 170" fill="none" stroke="#43a047" stroke-width="2"/>
+  <path d="M 324 140 L 324 155 L 400 155" fill="none" stroke="#43a047" stroke-width="2"/>
+  <rect x="400" y="140" width="110" height="88" rx="6" fill="#151a2e" stroke="#7c4dff"/>
+  <text x="408" y="158" fill="#e8eaf0" font-size="10" font-family="ui-monospace,monospace">D2 ← A SW</text>
+  <text x="408" y="176" fill="#e8eaf0" font-size="10" font-family="ui-monospace,monospace">D3 ← T SW</text>
+  <text x="408" y="194" fill="#e8eaf0" font-size="10" font-family="ui-monospace,monospace">D4 ← C SW</text>
+  <text x="408" y="212" fill="#e8eaf0" font-size="10" font-family="ui-monospace,monospace">D5 ← G SW</text>
+  <text x="52" y="250" fill="#b39ddb" font-size="11" font-family="system-ui,sans-serif">Start: hold A+T+C+G together ~0.15 s (no extra pin)</text>
+</svg>
+<p class="cap">Schematic overview — wire lengths and exact rows are up to your layout.</p>
+
+<h2>After wiring</h2>
+<ul>
+  <li>Upload <code>dna_sequence_game.ino</code> (115200 baud).</li>
+  <li>Open <code>dna-arduino.html</code> in Chrome/Edge and connect the serial port.</li>
+</ul>
+
+<p class="note">If a key reads backwards (always “pressed”), your module might use opposite logic—say so and the sketch can be adjusted (<code>INPUT</code> vs <code>INPUT_PULLUP</code> or inverted reads).</p>
+
+</body>
+</html>
