@@ -371,7 +371,7 @@
 <body>
   <div class="mesh" aria-hidden="true"></div>
 
-  <div class="survey-overlay active" id="pretest-overlay">
+  <div class="survey-overlay" id="pretest-overlay">
     <div class="survey-panel">
       <h2 class="survey-heading">Pre-Test / 前測</h2>
       <p class="survey-intro">Please answer all questions before starting. / 請在開始遊戲前回答所有問題。</p>
@@ -403,13 +403,15 @@
     <div class="survey-panel">
       <div id="thankyou-title">Thank You! / 感謝參與</div>
       <p id="thankyou-message">Your responses have been recorded.</p>
+      <p class="survey-intro">Play again? / 再玩一次？</p>
       <div class="survey-actions">
-        <button type="button" class="dna-primary" id="thankyou-continue-btn">Continue / 繼續</button>
+        <button type="button" class="dna-primary" id="thankyou-replay-yes">Yes / 是</button>
+        <button type="button" id="thankyou-replay-no">No / 否</button>
       </div>
     </div>
   </div>
 
-  <div class="gate" id="nameGate" role="dialog" aria-labelledby="gateTitle" hidden>
+  <div class="gate" id="nameGate" role="dialog" aria-labelledby="gateTitle">
     <div class="gate-card">
       <h2 id="gateTitle">Enter the lab</h2>
       <p class="gate-score" id="gateScore" hidden></p>
@@ -523,7 +525,8 @@
   const posttestSkipBtn = el('posttest-skip-btn');
   const thankyouOverlay = el('thankyou-overlay');
   const thankyouMessage = el('thankyou-message');
-  const thankyouContinueBtn = el('thankyou-continue-btn');
+  const thankyouReplayYes = el('thankyou-replay-yes');
+  const thankyouReplayNo = el('thankyou-replay-no');
 
   let playerName = '';
   let surveySession = null;
@@ -552,21 +555,23 @@
       thankyouOverlay.classList.contains('active');
   }
 
-  function openNameGateAfterPretest() {
+  function openPretest() {
+    if (pretestError) pretestError.hidden = true;
+    document.querySelectorAll('#pretest-questions input[type=radio]').forEach((input) => {
+      input.checked = false;
+    });
+    pretestOverlay.classList.add('active');
+  }
+
+  function enterGameAfterPretest() {
     pretestOverlay.classList.remove('active');
     pretestDone = true;
-    const saved = localStorage.getItem(LS_NAME);
-    if (saved && saved.trim()) {
-      playerName = saved.trim().slice(0, 24);
-      playerPill.hidden = false;
-      playerNameDisplay.textContent = playerName;
-      nameGate.hidden = true;
-      newRoundBtn.disabled = !playerName;
-      renderLeaderboard();
-      prepareRound();
-      return;
-    }
-    openGate('');
+    playerPill.hidden = false;
+    playerNameDisplay.textContent = playerName;
+    attemptNumber = 0;
+    newRoundBtn.disabled = !playerName;
+    renderLeaderboard();
+    prepareRound();
   }
 
   function continuePreTest() {
@@ -578,20 +583,22 @@
     pretestError.hidden = true;
     surveySession = {
       sessionId: createSurveySessionId(),
+      name: playerName,
       preQ1: preResult.answers.preQ1,
       preQ2: preResult.answers.preQ2,
     };
-    openNameGateAfterPretest();
+    enterGameAfterPretest();
   }
 
   function skipPreTest() {
     pretestError.hidden = true;
     surveySession = {
       sessionId: createSurveySessionId(),
+      name: playerName,
       preQ1: SURVEY_SKIP_VALUE,
       preQ2: SURVEY_SKIP_VALUE,
     };
-    openNameGateAfterPretest();
+    enterGameAfterPretest();
   }
 
   function openPostTest() {
@@ -647,7 +654,6 @@
       }
     }
 
-    pendingGateAfterThankYou = true;
     thankyouOverlay.classList.add('active');
 
     if (posttestSubmitBtn) {
@@ -676,12 +682,20 @@
     );
   }
 
-  function continueAfterThankYou() {
+  function replayYes() {
     thankyouOverlay.classList.remove('active');
-    if (pendingGateAfterThankYou && lastRoundMetrics) {
-      pendingGateAfterThankYou = false;
-      openGateAfterWin(lastRoundMetrics.sec);
-    }
+    surveySession = null;
+    pretestDone = false;
+    lastRoundMetrics = null;
+    attemptNumber = 0;
+    playerPill.hidden = true;
+    openGate('');
+  }
+
+  function replayNo() {
+    thankyouOverlay.classList.remove('active');
+    playerPill.hidden = false;
+    prepareRound();
   }
 
   function loadBoard() {
@@ -835,15 +849,9 @@
     }
     playerName = n;
     localStorage.setItem(LS_NAME, n);
-    const doPrepare = pendingPrepareAfterGate;
-    pendingPrepareAfterGate = false;
-    if (doPrepare) resetGateCopy();
     nameGate.hidden = true;
-    playerPill.hidden = false;
-    playerNameDisplay.textContent = n;
-    if (doPrepare) prepareRound();
-    else newRoundBtn.disabled = !playerName;
-    renderLeaderboard();
+    playerPill.hidden = true;
+    openPretest();
   }
 
   function prepareRound() {
@@ -865,8 +873,8 @@
 
   function beginPlaying() {
     if (phase !== 'idle') return;
-    if (!playerName) {
-      openGate('');
+    if (!pretestDone || !playerName) {
+      if (!playerName) openGate('');
       return;
     }
     attemptNumber += 1;
@@ -978,7 +986,7 @@
       readLoop();
       connectBtn.textContent = 'Connected';
       connectBtn.disabled = true;
-      prepareRound();
+      if (pretestDone) prepareRound();
     } catch (e) {
       if (e.name !== 'NotFoundError') console.error(e);
     }
@@ -993,7 +1001,8 @@
   pretestSkipBtn.addEventListener('click', skipPreTest);
   posttestSubmitBtn.addEventListener('click', submitPostTest);
   posttestSkipBtn.addEventListener('click', skipPostTest);
-  thankyouContinueBtn.addEventListener('click', continueAfterThankYou);
+  thankyouReplayYes.addEventListener('click', replayYes);
+  thankyouReplayNo.addEventListener('click', replayNo);
 
   connectBtn.addEventListener('click', connect);
   newRoundBtn.addEventListener('click', prepareRound);
@@ -1029,8 +1038,7 @@
   });
 
   renderLeaderboard();
-  nameGate.hidden = true;
-  prepareRound();
+  openGate(localStorage.getItem(LS_NAME) || '');
 })();
 </script>
 <script>
