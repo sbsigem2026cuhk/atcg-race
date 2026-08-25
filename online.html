@@ -497,11 +497,9 @@
 
       <aside class="panel-rank" aria-label="Leaderboard">
         <h3>Top runs</h3>
-        <p class="rank-sub">Best times on this browser</p>
+        <p class="rank-sub">Global best times · shared across devices</p>
         <ol class="rank-list" id="rankList"></ol>
-        <div class="rank-foot">
-          <button type="button" id="clearRankBtn">Clear rankings</button>
-        </div>
+        <p class="rank-foot" id="rankStatus" hidden></p>
       </aside>
     </div>
   </div>
@@ -512,8 +510,11 @@
   const LEN = 20;
   const BASES = ['A', 'T', 'C', 'G'];
   const LS_NAME = 'dnaHelixPlayerName';
-  const LS_BOARD = 'dnaHelixLeaderboard';
   const MAX_RANK = 12;
+  // Odyssey Vercel API → Supabase (shared across devices)
+  const LEADERBOARD_API =
+    (typeof window !== 'undefined' && window.ATCG_LEADERBOARD_API) ||
+    'https://synthetic-biology-odyssey.vercel.app/api/atcg-race/leaderboard';
 
   const complement = (ch) => ({ A: 'T', T: 'A', C: 'G', G: 'C' }[ch]);
 
@@ -540,7 +541,8 @@
   const playerNameDisplay = el('playerNameDisplay');
   const changeNameBtn = el('changeNameBtn');
   const rankList = el('rankList');
-  const clearRankBtn = el('clearRankBtn');
+  const rankStatus = el('rankStatus');
+  let boardRows = [];
   const pretestOverlay = el('pretest-overlay');
   const pretestError = el('pretest-error');
   const pretestContinueBtn = el('pretest-continue-btn');
@@ -732,18 +734,30 @@
     }
   }
 
-  function loadBoard() {
-    try {
-      const raw = localStorage.getItem(LS_BOARD);
-      const arr = raw ? JSON.parse(raw) : [];
-      return Array.isArray(arr) ? arr : [];
-    } catch (_) {
-      return [];
+  function setRankStatus(msg) {
+    if (!rankStatus) return;
+    if (!msg) {
+      rankStatus.hidden = true;
+      rankStatus.textContent = '';
+      return;
     }
+    rankStatus.hidden = false;
+    rankStatus.textContent = msg;
   }
 
-  function saveBoard(rows) {
-    localStorage.setItem(LS_BOARD, JSON.stringify(rows));
+  async function fetchBoard() {
+    setRankStatus('Loading rankings…');
+    try {
+      const res = await fetch(LEADERBOARD_API, { method: 'GET', cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      boardRows = Array.isArray(data.rows) ? data.rows : [];
+      setRankStatus('');
+    } catch (err) {
+      console.warn('Leaderboard fetch failed', err);
+      setRankStatus('Could not load global rankings.');
+    }
+    renderLeaderboard();
   }
 
   function renderStrandHtml(sequence, animate) {
@@ -797,7 +811,7 @@
   }
 
   function renderLeaderboard() {
-    const rows = loadBoard();
+    const rows = boardRows;
     rankList.innerHTML = '';
     if (!rows.length) {
       const li = document.createElement('li');
@@ -820,13 +834,26 @@
     });
   }
 
-  function recordFinish(sec) {
+  async function recordFinish(sec) {
     if (!playerName) return;
-    const rows = loadBoard();
-    rows.push({ name: playerName, sec, at: Date.now() });
-    rows.sort((a, b) => a.sec - b.sec);
-    const trimmed = rows.slice(0, MAX_RANK);
-    saveBoard(trimmed);
+    setRankStatus('Saving score…');
+    try {
+      const res = await fetch(LEADERBOARD_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: playerName, sec }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      boardRows = Array.isArray(data.rows) ? data.rows : boardRows;
+      setRankStatus('');
+    } catch (err) {
+      console.warn('Leaderboard save failed', err);
+      setRankStatus('Score saved locally only — global board unreachable.');
+      boardRows = boardRows.concat([{ name: playerName, sec, at: Date.now() }])
+        .sort((a, b) => a.sec - b.sec)
+        .slice(0, MAX_RANK);
+    }
     renderLeaderboard();
   }
 
@@ -839,7 +866,7 @@
   function resetGateCopy() {
     gateTitle.textContent = 'Enter the lab';
     gateIntro.textContent =
-      'Choose a display name. Fastest correct runs (20 bases) are saved on this device only.';
+      'Choose a display name. Fastest correct runs (20 bases) go on the shared leaderboard.';
     gateLabel.textContent = 'Researcher name';
     playerNameInput.placeholder = 'e.g. Dr. Chen';
     gateContinue.textContent = 'Continue';
@@ -1014,13 +1041,6 @@
     }
   });
   changeNameBtn.addEventListener('click', () => openGate(playerName));
-  clearRankBtn.addEventListener('click', () => {
-    if (confirm('Remove all leaderboard entries on this device?')) {
-      localStorage.removeItem(LS_BOARD);
-      renderLeaderboard();
-    }
-  });
-
   document.addEventListener('keydown', (e) => {
     if (isSurveyOpen()) return;
     if (!nameGate.hidden) return;
@@ -1038,7 +1058,7 @@
     }
   });
 
-  renderLeaderboard();
+  fetchBoard();
   openGate(localStorage.getItem(LS_NAME) || '');
 })();
 </script>
