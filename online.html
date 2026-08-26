@@ -287,7 +287,11 @@
     display:flex;align-items:center;gap:8px;
   }
   .panel-rank .rank-sub{font-size:.8rem;color:var(--muted);margin-bottom:16px}
-  .rank-list{list-style:none;margin:0;padding:0}
+  .rank-list{
+    list-style:none;margin:0;padding:0;
+    max-height:min(62vh,560px);overflow-y:auto;overscroll-behavior:contain;
+    scrollbar-width:thin;scrollbar-color:var(--stroke) transparent;
+  }
   .rank-row{
     display:grid;grid-template-columns:36px 1fr auto;gap:10px;align-items:center;
     padding:10px 12px;border-radius:12px;margin-bottom:6px;
@@ -496,8 +500,8 @@
       </main>
 
       <aside class="panel-rank" aria-label="Leaderboard">
-        <h3>Top runs</h3>
-        <p class="rank-sub">Global best times · shared across devices</p>
+        <h3>All runs</h3>
+        <p class="rank-sub">Every finish · fastest first · shared across devices</p>
         <ol class="rank-list" id="rankList"></ol>
         <p class="rank-foot" id="rankStatus" hidden></p>
       </aside>
@@ -510,7 +514,6 @@
   const LEN = 20;
   const BASES = ['A', 'T', 'C', 'G'];
   const LS_NAME = 'dnaHelixPlayerName';
-  const MAX_RANK = 12;
   // Odyssey Vercel API → Supabase (shared across devices)
   const LEADERBOARD_API =
     (typeof window !== 'undefined' && window.ATCG_LEADERBOARD_API) ||
@@ -851,8 +854,7 @@
       console.warn('Leaderboard save failed', err);
       setRankStatus('Score saved locally only — global board unreachable.');
       boardRows = boardRows.concat([{ name: playerName, sec, at: Date.now() }])
-        .sort((a, b) => a.sec - b.sec)
-        .slice(0, MAX_RANK);
+        .sort((a, b) => a.sec - b.sec);
     }
     renderLeaderboard();
   }
