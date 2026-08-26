@@ -304,7 +304,9 @@
   .rank-row:nth-child(2) .rank-num{color:#94a3b8}
   .rank-row:nth-child(3) .rank-num{color:#cd7f32}
   .rank-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .rank-time{font-family:"IBM Plex Mono",monospace;color:var(--accent);font-weight:600}
+  .rank-score-wrap{text-align:right;line-height:1.25}
+  .rank-time{font-family:"IBM Plex Mono",monospace;color:var(--accent);font-weight:600;font-size:.95rem}
+  .rank-meta{display:block;font-size:.68rem;color:var(--muted);margin-top:2px;font-family:"IBM Plex Mono",monospace;font-weight:500}
   .rank-empty{
     list-style:none;margin:0;color:var(--muted);font-size:.88rem;
     padding:16px 12px;text-align:center;
@@ -439,7 +441,7 @@
     <div class="gate-card">
       <h2 id="gateTitle">Enter the lab</h2>
       <p class="gate-score" id="gateScore" hidden></p>
-      <p id="gateIntro">Choose a display name. Fastest correct runs (20 bases) are saved on this device only.</p>
+      <p id="gateIntro">Choose a display name. Rank board scores speed and accuracy — wrong presses hurt your score.</p>
       <label for="playerNameInput" id="gateLabel">Researcher name</label>
       <input type="text" id="playerNameInput" maxlength="24" autocomplete="nickname" placeholder="e.g. Dr. Chen">
       <div class="gate-actions">
@@ -499,9 +501,9 @@
         <p class="version-links">Arduino + physical buttons: <a href="dna-arduino.html">Hardware version</a></p>
       </main>
 
-      <aside class="panel-rank" aria-label="Leaderboard">
-        <h3>All runs</h3>
-        <p class="rank-sub">Every finish · fastest first · shared across devices</p>
+      <aside class="panel-rank" aria-label="Rank board">
+        <h3>Rank board</h3>
+        <p class="rank-sub">Score = time × (1 + wrong÷20) · lower is better · shared</p>
         <ol class="rank-list" id="rankList"></ol>
         <p class="rank-foot" id="rankStatus" hidden></p>
       </aside>
@@ -518,6 +520,33 @@
   const LEADERBOARD_API =
     (typeof window !== 'undefined' && window.ATCG_LEADERBOARD_API) ||
     'https://synthetic-biology-odyssey.vercel.app/api/atcg-race/leaderboard';
+
+  /** Lower is better: balances speed with accuracy (wrong presses inflate score). */
+  function computeRankScore(sec, errors) {
+    const e = Math.max(0, Math.floor(Number(errors) || 0));
+    return (Number(sec) * (LEN + e)) / LEN;
+  }
+
+  function normalizeRow(r) {
+    const sec = Number(r.sec);
+    const errors = Math.max(0, Math.floor(Number(r.errors) || 0));
+    const score = r.score != null && Number.isFinite(Number(r.score))
+      ? Number(r.score)
+      : computeRankScore(sec, errors);
+    return {
+      name: String(r.name || 'Anonymous').slice(0, 24),
+      sec,
+      errors,
+      score: Math.round(score * 1000) / 1000,
+      at: r.at,
+    };
+  }
+
+  function sortBoard(rows) {
+    return rows.slice().sort(function (a, b) {
+      return a.score - b.score || a.sec - b.sec || (a.at || 0) - (b.at || 0);
+    });
+  }
 
   const complement = (ch) => ({ A: 'T', T: 'A', C: 'G', G: 'C' }[ch]);
 
@@ -754,7 +783,7 @@
       const res = await fetch(LEADERBOARD_API, { method: 'GET', cache: 'no-store' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
-      boardRows = Array.isArray(data.rows) ? data.rows : [];
+      boardRows = sortBoard((Array.isArray(data.rows) ? data.rows : []).map(normalizeRow));
       setRankStatus('');
     } catch (err) {
       console.warn('Leaderboard fetch failed', err);
@@ -827,34 +856,42 @@
       const li = document.createElement('li');
       li.className = 'rank-row' + (r.name === playerName ? ' you' : '');
       const med = i === 0 ? '🥇 ' : i === 1 ? '🥈 ' : i === 2 ? '🥉 ' : '';
+      const acc = Math.round((LEN / (LEN + r.errors)) * 100);
       li.innerHTML =
         '<span class="rank-num">' + med + (i + 1) + '</span>' +
         '<span class="rank-name"></span>' +
-        '<span class="rank-time"></span>';
+        '<span class="rank-score-wrap">' +
+          '<span class="rank-time"></span>' +
+          '<span class="rank-meta"></span>' +
+        '</span>';
       li.querySelector('.rank-name').textContent = r.name;
-      li.querySelector('.rank-time').textContent = Number(r.sec).toFixed(2) + 's';
+      li.querySelector('.rank-time').textContent = Number(r.score).toFixed(2);
+      li.querySelector('.rank-meta').textContent =
+        Number(r.sec).toFixed(2) + 's · ' + r.errors + ' wrong · ' + acc + '%';
       rankList.appendChild(li);
     });
   }
 
-  async function recordFinish(sec) {
+  async function recordFinish(sec, errors) {
     if (!playerName) return;
+    const errs = Math.max(0, Math.floor(Number(errors) || 0));
     setRankStatus('Saving score…');
     try {
       const res = await fetch(LEADERBOARD_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: playerName, sec }),
+        body: JSON.stringify({ name: playerName, sec, errors: errs }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
-      boardRows = Array.isArray(data.rows) ? data.rows : boardRows;
+      boardRows = sortBoard((Array.isArray(data.rows) ? data.rows : boardRows).map(normalizeRow));
       setRankStatus('');
     } catch (err) {
       console.warn('Leaderboard save failed', err);
       setRankStatus('Score saved locally only — global board unreachable.');
-      boardRows = boardRows.concat([{ name: playerName, sec, at: Date.now() }])
-        .sort((a, b) => a.sec - b.sec);
+      boardRows = sortBoard(boardRows.concat([
+        normalizeRow({ name: playerName, sec, errors: errs, at: Date.now() }),
+      ]));
     }
     renderLeaderboard();
   }
@@ -868,7 +905,7 @@
   function resetGateCopy() {
     gateTitle.textContent = 'Enter the lab';
     gateIntro.textContent =
-      'Choose a display name. Fastest correct runs (20 bases) go on the shared leaderboard.';
+      'Choose a display name. Rank board scores speed and accuracy — wrong presses hurt your score.';
     gateLabel.textContent = 'Researcher name';
     playerNameInput.placeholder = 'e.g. Dr. Chen';
     gateContinue.textContent = 'Continue';
@@ -885,13 +922,15 @@
     playerNameInput.focus();
   }
 
-  function openGateAfterWin(sec) {
+  function openGateAfterWin(sec, errors) {
     pendingPrepareAfterGate = true;
     gateTitle.textContent = 'Round complete!';
     gateIntro.textContent =
-      'This time is saved on the leaderboard. Enter the next player, then start a fresh sequence.';
+      'Your rank score (time + accuracy) is saved. Enter the next player, then start a fresh sequence.';
     gateScore.hidden = false;
-    gateScore.textContent = Number(sec).toFixed(2) + ' s';
+    var errs = Math.max(0, Math.floor(Number(errors) || 0));
+    var score = computeRankScore(sec, errs);
+    gateScore.textContent = score.toFixed(2) + '  (' + Number(sec).toFixed(2) + 's · ' + errs + ' wrong)';
     gateLabel.textContent = 'Next player name';
     playerNameInput.value = '';
     playerNameInput.placeholder = 'Who is playing next?';
@@ -979,10 +1018,10 @@
     stopTimerLoop();
     const sec = (performance.now() - startTime) / 1000;
     timerEl.textContent = sec.toFixed(2) + ' s';
-    statusEl.textContent = 'Nice run! Complete the post-test to continue.';
+    statusEl.textContent = 'Nice run! Rank score balances time and accuracy — complete the post-test to continue.';
     statusEl.className = 'ok';
     newRoundBtn.disabled = true;
-    recordFinish(sec);
+    recordFinish(sec, errorCount);
     const avgDecisionMs = decisionTimes.length
       ? decisionTimes.reduce((sum, ms) => sum + ms, 0) / decisionTimes.length
       : 0;
