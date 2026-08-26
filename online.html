@@ -293,7 +293,7 @@
     scrollbar-width:thin;scrollbar-color:var(--stroke) transparent;
   }
   .rank-row{
-    display:grid;grid-template-columns:36px 1fr auto;gap:10px;align-items:center;
+    display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:10px;align-items:start;
     padding:10px 12px;border-radius:12px;margin-bottom:6px;
     background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.08);
     font-size:.88rem;
@@ -303,7 +303,7 @@
   .rank-row:nth-child(1) .rank-num{color:#fbbf24}
   .rank-row:nth-child(2) .rank-num{color:#94a3b8}
   .rank-row:nth-child(3) .rank-num{color:#cd7f32}
-  .rank-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rank-name{font-weight:600;overflow:visible;white-space:normal;word-break:break-word;line-height:1.25}
   .rank-score-wrap{text-align:right;line-height:1.25}
   .rank-time{font-family:"IBM Plex Mono",monospace;color:var(--accent);font-weight:600;font-size:.95rem}
   .rank-meta{display:block;font-size:.68rem;color:var(--muted);margin-top:2px;font-family:"IBM Plex Mono",monospace;font-weight:500}
@@ -443,7 +443,7 @@
       <p class="gate-score" id="gateScore" hidden></p>
       <p id="gateIntro">Choose a display name. Rank board scores speed and accuracy — wrong presses hurt your score.</p>
       <label for="playerNameInput" id="gateLabel">Researcher name</label>
-      <input type="text" id="playerNameInput" maxlength="24" autocomplete="nickname" placeholder="e.g. Dr. Chen">
+      <input type="text" id="playerNameInput" maxlength="64" autocomplete="nickname" placeholder="e.g. Dr. Chen">
       <div class="gate-actions">
         <button type="button" class="dna-primary" id="gateContinue">Continue</button>
       </div>
@@ -534,7 +534,7 @@
       ? Number(r.score)
       : computeRankScore(sec, errors);
     return {
-      name: String(r.name || 'Anonymous').slice(0, 24),
+      name: String(r.name || 'Anonymous').slice(0, 64),
       sec,
       errors,
       score: Math.round(score * 1000) / 1000,
@@ -942,7 +942,7 @@
   }
 
   function closeGate() {
-    const n = playerNameInput.value.trim().slice(0, 24);
+    const n = playerNameInput.value.trim().slice(0, 64);
     if (!n) {
       playerNameInput.focus();
       playerNameInput.style.outline = '2px solid var(--bad)';
