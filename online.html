@@ -503,7 +503,7 @@
 
       <aside class="panel-rank" aria-label="Rank board">
         <h3>Rank board</h3>
-        <p class="rank-sub">Score = time × (1 + wrong÷20) · lower is better · shared</p>
+        <p class="rank-sub">Score = time + 1s per wrong · lower is better · shared</p>
         <ol class="rank-list" id="rankList"></ol>
         <p class="rank-foot" id="rankStatus" hidden></p>
       </aside>
@@ -521,10 +521,10 @@
     (typeof window !== 'undefined' && window.ATCG_LEADERBOARD_API) ||
     'https://synthetic-biology-odyssey.vercel.app/api/atcg-race/leaderboard';
 
-  /** Lower is better: balances speed with accuracy (wrong presses inflate score). */
+  /** Lower is better: each wrong press adds 1s. */
   function computeRankScore(sec, errors) {
     const e = Math.max(0, Math.floor(Number(errors) || 0));
-    return (Number(sec) * (LEN + e)) / LEN;
+    return Number(sec) + e;
   }
 
   function normalizeRow(r) {
